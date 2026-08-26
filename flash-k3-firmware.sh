@@ -106,8 +106,8 @@ if [[ ${#missing[@]} -gt 0 ]]; then
   if [[ ! -t 0 ]]; then
     die "install them manually: sudo apt install ${missing[*]}"
   fi
-  read -rp "Install now with apt? [Y/n] " ans
-  if [[ "${ans:-y}" =~ ^[Yy]$ ]]; then
+  read -rp "Install now with apt? [Y/n] " install_ans || install_ans=""
+  if [[ "${install_ans:-y}" =~ ^[Yy]$ ]]; then
     sudo apt install -y "${missing[@]}"
   else
     die "install them manually: sudo apt install ${missing[*]}"
@@ -226,8 +226,8 @@ log "payloads in $TEMP_DIR:"
 ls -1 "$TEMP_DIR" 2>/dev/null | sed 's/^/  /' || warn "no payloads extracted"
 warn "About to flash firmware to the board via USB fastboot."
 warn "Ensure the board is in FDL flash mode (hold FDL button while powering on)."
-read -rp "Continue? [y/N] " ans
-[[ "$ans" =~ ^[Yy]$ ]] || die "aborted by user"
+read -rp "Continue? [y/N] " confirm || die "aborted (no input)"
+[[ "$confirm" =~ ^[Yy]$ ]] || die "aborted by user"
 echo
 
 flash_board
