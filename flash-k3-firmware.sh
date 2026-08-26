@@ -114,23 +114,60 @@ if [[ ${#missing[@]} -gt 0 ]]; then
   fi
 fi
 
-# ---------------------------------------------------------- PPA pull + extract --
+# --- PPA signing key -----------------------------------------------------------
+# pull-ppa-debs verifies .dsc signatures with gpgv, using hardcoded Debian
+# keyrings that never contain PPA signing keys.  We work around this by
+# downloading the PPA signing key, exporting it to a standalone keyring, and
+# wrapping gpgv to inject it alongside the hardcoded keyrings.  If any step
+# fails (missing gpg/wget, network error), we fall back to
+# --no-verify-signature — the .deb payloads are still SHA256-verified by
+# pull-ppa-debs itself.
+KEYRING="$WORKDIR/ppa-keyring.gpg"
+WRAPPER_DIR="$WORKDIR/bin"
+VERIFY_FLAG="--no-verify-signature"
 
-declare -A EXTRACTED=()   # source_pkg -> extraction root
+setup_ppa_keyring() {
+  command -v gpg  >/dev/null 2>&1 || return 1
+  command -v wget >/dev/null 2>&1 || return 1
+  local gnupghome="$WORKDIR/gnupg" inrelease keyid
+  mkdir -p "$gnupghome"; chmod 700 "$gnupghome"
+  inrelease="$WORKDIR/InRelease"
+  log "fetching PPA signing key..."
+  wget -qO "$inrelease" \
+    "https://ppa.launchpadcontent.net/$PPA/ubuntu/dists/$SUITE/InRelease" \
+    || return 1
+  keyid=$(GNUPGHOME="$gnupghome" gpg --verify "$inrelease" 2>&1 | grep -oE '[0-9A-F]{40}' | head -1)
+  [[ -n "$keyid" ]] || return 1
+  GNUPGHOME="$gnupghome" gpg --batch --keyserver keyserver.ubuntu.com --recv-keys "$keyid" 2>/dev/null
+  GNUPGHOME="$gnupghome" gpg --batch --export "$keyid" > "$KEYRING" 2>/dev/null
+  mkdir -p "$WRAPPER_DIR"
+  printf '#!/bin/sh\nexec gpgv --keyring "%s" "$@"\n' "$KEYRING" > "$WRAPPER_DIR/gpgv"
+  chmod +x "$WRAPPER_DIR/gpgv"
+  VERIFY_FLAG=""
+}
 
-# Pull a source package's binary .debs from the PPA via pull-ppa-debs and
-# extract them all into a single tree.  $2 = "optional" to warn-and-continue
-# instead of dying.
-pull_source() {
-  local src="$1" mode="${2:-required}" dir deb
-  dir="$WORKDIR/extract/$src"
-  if [[ -d "$dir" ]]; then
-    EXTRACTED[$src]="$dir"
-    return 0
-  fi
-  mkdir -p "$dir"
-  log "pulling $src from ppa:$PPA ($SUITE)..."
-  if ! ( cd "$dir" && pull-ppa-debs --no-verify-signature --ppa="$PPA" -a riscv64 "$src" "$SUITE" ); then
+if setup_ppa_keyring; then
+  log "PPA signing key imported — .dsc signatures will be verified"
+else
+  warn "could not fetch PPA signing key — skipping .dsc signature verification"
+fi
+echo
+
+ declare -A EXTRACTED=()   # source_pkg -> extraction root
+ 
+ # Pull a source package's binary .debs from the PPA via pull-ppa-debs and
+ # extract them all into a single tree.  $2 = "optional" to warn-and-continue
+ # instead of dying.
+ pull_source() {
+   local src="$1" mode="${2:-required}" dir deb
+   dir="$WORKDIR/extract/$src"
+   if [[ -d "$dir" ]]; then
+     EXTRACTED[$src]="$dir"
+     return 0
+   fi
+   mkdir -p "$dir"
+   log "pulling $src from ppa:$PPA ($SUITE)..."
+  if ! ( cd "$dir" && PATH="$WRAPPER_DIR:$PATH" pull-ppa-debs $VERIFY_FLAG --ppa="$PPA" -a riscv64 "$src" "$SUITE" ); then
     if [[ "$mode" == "optional" ]]; then
       warn "optional $src not available — EC firmware will be skipped"
       return 1
