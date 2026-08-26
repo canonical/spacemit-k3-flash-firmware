@@ -9,14 +9,14 @@
 #
 # What gets flashed (SPI NOR, MTD partition layout):
 #
-#   partition   payload                     source package
-#   ----------  -------------------------   ------------------------
+#   partition   payload                      source package
+#   ----------  -------------------------    ------------------------
 #   bootinfo    bootinfo_spinor.bin          u-boot-spacemit
 #   fsbl        FSBL.bin  (== FDL1)          u-boot-spacemit
-#   env          env.bin                     u-boot-spacemit
-#   esos         esos.itb                    esos-spacemit
-#   opensbi      fw_dynamic.itb              opensbi-spacemit
-#   uboot        edk2.itb  (UEFI system FW)  edk2-spacemit
+#   env         env.bin                      u-boot-spacemit
+#   esos        esos.itb                     esos-spacemit
+#   opensbi     fw_dynamic.itb               opensbi-spacemit
+#   uboot       edk2.itb  (UEFI system FW)   edk2-spacemit
 #
 # The EC (Chromium-EC) controller is also flashed if spacemit-ec-firmware is
 # available: SpacemiT's fastboot.yaml stages ec.bin and issues `oem ec:flash`,
