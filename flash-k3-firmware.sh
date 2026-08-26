@@ -130,7 +130,7 @@ pull_source() {
   fi
   mkdir -p "$dir"
   log "pulling $src from ppa:$PPA ($SUITE)..."
-  if ! ( cd "$dir" && pull-ppa-debs --ppa="$PPA" -a riscv64 "$src" "$SUITE" ); then
+  if ! ( cd "$dir" && pull-ppa-debs --no-verify-signature --ppa="$PPA" -a riscv64 "$src" "$SUITE" ); then
     if [[ "$mode" == "optional" ]]; then
       warn "optional $src not available — EC firmware will be skipped"
       return 1
