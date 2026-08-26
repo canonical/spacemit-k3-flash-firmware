@@ -224,8 +224,9 @@ populate_temp
 
 log "payloads in $TEMP_DIR:"
 ls -1 "$TEMP_DIR" 2>/dev/null | sed 's/^/  /' || warn "no payloads extracted"
-warn "About to flash firmware to the board via USB fastboot."
-warn "Ensure the board is in FDL flash mode (hold FDL button while powering on)."
+log "About to flash firmware to the board via USB fastboot."
+log "Ensure the board is in FDL flash mode (hold FDL button while powering on)."
+warn "Once flashing starts, do **not** interrupt it, or you could brick your board!"
 read -rp "Continue? [y/N] " confirm || die "aborted (no input)"
 [[ "$confirm" =~ ^[Yy]$ ]] || die "aborted by user"
 echo
