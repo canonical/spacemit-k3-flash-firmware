@@ -35,9 +35,9 @@
 #
 # Usage:
 #   ./flash-k3-firmware.sh            # flash latest firmware from the PPA
-#   ./flash-k3-firmware.sh --suite resolute
-#   ./flash-k3-firmware.sh --workdir ./k3-fw
-#   ./flash-k3-firmware.sh --keep      # don't wipe the work dir afterwards
+#
+# Override the Ubuntu suite the PPA is built for:
+#   K3_FLASH_SUITE=resolute ./flash-k3-firmware.sh
 #
 # Pre-requisites on the host: ubuntu-dev-tools (pull-ppa-debs), dpkg, git,
 # python3, python3-yaml, fastboot.
@@ -51,8 +51,7 @@ set -euo pipefail
 
 PPA="ubuntu-risc-v-team/k3"
 SUITE="${K3_FLASH_SUITE:-resolute}"   # Ubuntu release the PPA is built for
-WORKDIR="${K3_FLASH_WORKDIR:-$(mktemp -d -t k3-firmware-XXXXXX)}"
-KEEP=0
+WORKDIR="$(mktemp -d -t k3-firmware-XXXXXX)"
 SPACEMIT_REPO="https://github.com/spacemit-com/K3-Ubuntu-Images.git"
 
 # Source packages to pull from the PPA.  pull-ppa-debs takes a SOURCE package
@@ -91,35 +90,18 @@ warn() { printf '\033[1;33m!!\033[0m %s\n' "$*"; }
 err()  { printf '\033[1;31mxx\033[0m %s\n' "$*" >&2; }
 die()  { err "$*"; exit 1; }
 
-usage() {
-  sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
-  cat <<EOF
-
-Options:
-  --suite SUITE    Ubuntu suite the PPA is published for (default: $SUITE)
-  --workdir DIR    Reuse an existing work directory
-  --keep           Don't remove the work directory when done
-  -h, --help       Show this help
-EOF
-}
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --suite) SUITE="$2"; shift 2;;
-    --workdir) WORKDIR="$2"; shift 2;;
-    --keep) KEEP=1; shift;;
-    -h|--help) usage; exit 0;;
-    *) die "unknown option: $1";;
-  esac
-done
-
-need() { command -v "$1" >/dev/null 2>&1 || die "missing dependency: $1 (apt install $2)"; }
+missing=()
+need() { command -v "$1" >/dev/null 2>&1 || missing+=("$2"); }
 need pull-ppa-debs ubuntu-dev-tools
 need dpkg-deb dpkg
 need fastboot android-tools-adb
 need git git
 need python3 python3
-python3 -c 'import yaml' 2>/dev/null || die "missing python3-yaml (apt install python3-yaml)"
+python3 -c 'import yaml' 2>/dev/null || missing+=(python3-yaml)
+
+if [[ ${#missing[@]} -gt 0 ]]; then
+  die "missing dependencies — install with: sudo apt install ${missing[*]}"
+fi
 
 # ---------------------------------------------------------- PPA pull + extract --
 
@@ -209,7 +191,7 @@ flash_board() {
 
 # ---------------------------------------------------------------- main --------
 
-trap '[ "$KEEP" = 1 ] || rm -rf "$WORKDIR"' EXIT
+trap 'rm -rf "$WORKDIR"' EXIT
 
 mkdir -p "$WORKDIR"
 
