@@ -187,15 +187,14 @@ populate_temp() {
 #   - FDL2 staging (u-boot.itb → RAM, full fastboot server)
 #   - EC firmware   (stage ec.bin + oem ec:flash, best-effort)
 #   - MTD partition table write + per-partition flash (SPI NOR)
-#   - GPT partition table write + firmware partitions (block device —
-#     redundant but harmless; overwritten by the Ubuntu dd afterwards)
+#   - GPT partition table write + firmware partitions
 #
 # --only restricts to firmware partitions so esp/cidata/writable (which we
 # don't extract) are skipped instead of causing a fastboot error.
 flash_board() {
   log "flashing firmware via SpacemiT image_flash.py..."
   ( cd "$SPACEMIT_DIR" && \
-    sudo python3 image_flash.py \
+    python3 image_flash.py \
       --fastboot fastboot.yaml \
       --only "$FIRMWARE_PARTITIONS" )
 }
@@ -236,12 +235,13 @@ flash_board
 cat <<'EOF'
 
 ==============================================================================
- Firmware flashed. The board is rebooting into UEFI (EDK2).
+ Firmware flashed. Please reboot the board.
 
  Next: install Ubuntu on the board's storage (NVMe/UFS), using an installer
- image on an USB thumb drive.
+ image on an USB thumb drive. Press F2 when EDK2 loads to enter EDK2 menu and
+ select boot device.
 
- Once Ubuntu is up, bring all firmware to the latest in-band:
+ Once Ubuntu is up, make sure to maintain all firmware up to date:
    sudo add-apt-repository ppa:ubuntu-risc-v-team/k3
    sudo apt update && sudo apt install spacemit-firmware
 ==============================================================================
