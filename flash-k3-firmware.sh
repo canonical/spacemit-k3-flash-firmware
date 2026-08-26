@@ -91,7 +91,7 @@ err()  { printf '\033[1;31mxx\033[0m %s\n' "$*" >&2; }
 die()  { err "$*"; exit 1; }
 
 # Check for dependencies, add missing dependencies to array
-# and print them all to user
+# and print them all to user, with automatic prompt to install
 missing=()
 need() { command -v "$1" >/dev/null 2>&1 || missing+=("$2"); }
 need pull-ppa-debs ubuntu-dev-tools
@@ -224,6 +224,10 @@ populate_temp
 
 log "payloads in $TEMP_DIR:"
 ls -1 "$TEMP_DIR" 2>/dev/null | sed 's/^/  /' || warn "no payloads extracted"
+warn "About to flash firmware to the board via USB fastboot."
+warn "Ensure the board is in FDL flash mode (hold FDL button while powering on)."
+read -rp "Continue? [y/N] " ans
+[[ "$ans" =~ ^[Yy]$ ]] || die "aborted by user"
 echo
 
 flash_board
