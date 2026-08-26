@@ -90,6 +90,8 @@ warn() { printf '\033[1;33m!!\033[0m %s\n' "$*"; }
 err()  { printf '\033[1;31mxx\033[0m %s\n' "$*" >&2; }
 die()  { err "$*"; exit 1; }
 
+# Check for dependencies, add missing dependencies to array
+# and print them all to user
 missing=()
 need() { command -v "$1" >/dev/null 2>&1 || missing+=("$2"); }
 need pull-ppa-debs ubuntu-dev-tools
@@ -100,7 +102,16 @@ need python3 python3
 python3 -c 'import yaml' 2>/dev/null || missing+=(python3-yaml)
 
 if [[ ${#missing[@]} -gt 0 ]]; then
-  die "missing dependencies — install with: sudo apt install ${missing[*]}"
+  warn "missing dependencies: ${missing[*]}"
+  if [[ ! -t 0 ]]; then
+    die "install them manually: sudo apt install ${missing[*]}"
+  fi
+  read -rp "Install now with apt? [Y/n] " ans
+  if [[ "${ans:-y}" =~ ^[Yy]$ ]]; then
+    sudo apt install -y "${missing[@]}"
+  else
+    die "install them manually: sudo apt install ${missing[*]}"
+  fi
 fi
 
 # ---------------------------------------------------------- PPA pull + extract --
