@@ -42,7 +42,7 @@
 #   K3_VERIFY=0 ./flash-k3-firmware.sh
 #
 # Pre-requisites on the host: ubuntu-dev-tools (pull-ppa-debs), dpkg, git,
-# python3, python3-yaml, fastboot.
+# python3, python3-yaml, python3-usb (readback verification), fastboot.
 # Run with a board in FDL flash mode (hold the FDL button while powering on)
 # and a USB-C data cable to the host.
 #
@@ -102,6 +102,11 @@ need fastboot android-tools-adb
 need git git
 need python3 python3
 python3 -c 'import yaml' 2>/dev/null || missing+=(python3-yaml)
+# python3-usb is only needed for the post-flash readback verification, so
+# only require it when that is enabled.
+if [[ "${K3_VERIFY:-1}" == "1" ]]; then
+  python3 -c 'import usb' 2>/dev/null || missing+=(python3-usb)
+fi
 
 if [[ ${#missing[@]} -gt 0 ]]; then
   warn "missing dependencies: ${missing[*]}"
@@ -218,11 +223,6 @@ verify_board() {
   fi
   local tool
   tool="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fastboot-dump.py"
-  if ! command -v python3 >/dev/null 2>&1 \
-     || ! python3 -c 'import usb' >/dev/null 2>&1; then
-    warn "verify: python3-usb not available (sudo apt install python3-usb) — skipping readback check"
-    return 0
-  fi
   if [[ ! -x "$tool" ]]; then
     warn "verify: $tool not found — skipping readback check"
     return 0
