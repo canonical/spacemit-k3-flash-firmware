@@ -5,3 +5,4 @@
 *.img.*
 temp/
 extract/
+__pycache__/

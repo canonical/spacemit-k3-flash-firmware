@@ -38,6 +38,8 @@
 #
 # Override the Ubuntu suite the PPA is built for:
 #   K3_FLASH_SUITE=resolute ./flash-k3-firmware.sh
+# Skip the post-flash readback verification:
+#   K3_VERIFY=0 ./flash-k3-firmware.sh
 #
 # Pre-requisites on the host: ubuntu-dev-tools (pull-ppa-debs), dpkg, git,
 # python3, python3-yaml, fastboot.
@@ -199,6 +201,61 @@ flash_board() {
       --only "$FIRMWARE_PARTITIONS" )
 }
 
+# Post-flash readback verification.  The agent's built-in check compares the
+# flash against the *download buffer*, so corruption entering over USB (host
+# side) passes it, and the additive checksum it uses is blind to block
+# reordering.  Here we read each flashed MTD partition back over fastboot
+# ("oem read" stock command, see fastboot-dump.py) and md5-compare against the
+# file we staged.  The agent idles in its fastboot loop after image_flash.py
+# finishes, so this runs in the same session.
+#
+# env is skipped on purpose: the agent legitimately re-saves it with updated
+# runtime content, so partition bytes != env.bin is expected there.
+verify_board() {
+  if [[ "${K3_VERIFY:-1}" != "1" ]]; then
+    log "verify: disabled (K3_VERIFY=0)"
+    return 0
+  fi
+  local tool
+  tool="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fastboot-dump.py"
+  if ! command -v python3 >/dev/null 2>&1 \
+     || ! python3 -c 'import usb' >/dev/null 2>&1; then
+    warn "verify: python3-usb not available (sudo apt install python3-usb) — skipping readback check"
+    return 0
+  fi
+  if [[ ! -x "$tool" ]]; then
+    warn "verify: $tool not found — skipping readback check"
+    return 0
+  fi
+
+  local -A part_file=(
+    [bootinfo]=bootinfo_spinor.bin
+    [fsbl]=FSBL.bin
+    [esos]=esos.itb
+    [opensbi]=fw_dynamic.itb
+    [uboot]=edk2.itb
+  )
+  local part file want got
+  for part in ${FIRMWARE_PARTITIONS//,/ }; do
+    file="${part_file[$part]:-}"
+    [[ -n "$file" && -s "$TEMP_DIR/$file" ]] || continue
+    log "verify: reading back '$part'..."
+    if ! "$tool" "$part" "$WORKDIR/verify-$part.bin" >&2; then
+      warn "verify: could not read back '$part' (old agent without oem read?) — skipping"
+      continue
+    fi
+    want=$(md5sum < "$TEMP_DIR/$file" | cut -d' ' -f1)
+    got=$(head -c "$(stat -c%s "$TEMP_DIR/$file")" "$WORKDIR/verify-$part.bin" | md5sum | cut -d' ' -f1)
+    if [[ "$want" == "$got" ]]; then
+      log "verify: $part OK ($file, md5 $want)"
+    else
+      err "verify: $part MISMATCH (expected $want, read back $got)"
+      err "verify: the board is still in FDL/fastboot mode — re-run this script to re-flash and recover."
+      exit 1
+    fi
+  done
+}
+
 # ---------------------------------------------------------------- main --------
 
 trap 'rm -rf "$WORKDIR"' EXIT
@@ -231,6 +288,7 @@ read -rp "Continue? [y/N] " confirm || die "aborted (no input)"
 echo
 
 flash_board
+verify_board
 
 cat <<'EOF'
 
