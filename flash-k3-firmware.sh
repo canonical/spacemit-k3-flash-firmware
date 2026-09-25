@@ -98,7 +98,7 @@ missing=()
 need() { command -v "$1" >/dev/null 2>&1 || missing+=("$2"); }
 need pull-ppa-debs ubuntu-dev-tools
 need dpkg-deb dpkg
-need fastboot android-tools-adb
+need fastboot fastboot
 need git git
 need python3 python3
 python3 -c 'import yaml' 2>/dev/null || missing+=(python3-yaml)
